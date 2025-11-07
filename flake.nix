@@ -156,34 +156,47 @@
             modules,
           }:
           (self.lib.mkEval args).config;
-        mkEval =
-          {
+        mkEvalArgs =
+          args@{
             pkgs,
             inputs,
             modules,
           }:
           let
-            moduleInputs = {
-              inherit git-hooks;
-            }
-            // inputs;
-            project = inputs.nixpkgs.lib.evalModules {
-              specialArgs = moduleInputs // {
-                inputs = moduleInputs;
-              };
-              modules = [
-                { config._module.args.pkgs = inputs.nixpkgs.lib.mkDefault pkgs; }
-                (self.modules + /top-level.nix)
-                (
-                  { config, ... }:
-                  {
-                    devenv.warnOnNewVersion = false;
-                    devenv.flakesIntegration = true;
-                  }
-                )
-              ]
-              ++ modules;
+            # TODO: deprecate default git-hooks input
+            defaultInputs = { inherit git-hooks; };
+            finalInputs = defaultInputs // inputs;
+            specialArgs = finalInputs // {
+              inputs = finalInputs;
             };
+
+            modules = [
+              (self.modules + /top-level.nix)
+              (
+                { config, ... }:
+                {
+                  # Configure overlays
+                  _module.args.pkgs = pkgs.appendOverlays config.overlays;
+                  # Enable the flakes integration
+                  devenv.flakesIntegration = true;
+                  # Disable CLI version checks
+                  devenv.warnOnNewVersion = false;
+                }
+              )
+            ]
+            ++ args.modules;
+          in
+          {
+            inherit specialArgs modules;
+          };
+        mkEval =
+          args@{
+            pkgs,
+            inputs,
+            modules,
+          }:
+          let
+            project = inputs.nixpkgs.lib.evalModules (self.lib.mkEvalArgs args);
           in
           project;
         mkShell =

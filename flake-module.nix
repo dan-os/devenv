@@ -2,17 +2,13 @@ devenvFlake: { flake-parts-lib, lib, inputs, ... }: {
   options.perSystem = flake-parts-lib.mkPerSystemOption ({ config, pkgs, system, ... }:
 
     let
-      devenvType = (devenvFlake.lib.mkEval {
-        inherit inputs pkgs;
-        modules = [
-          ({ config, ... }: {
-            config = {
-              _module.args.pkgs = pkgs.appendOverlays config.overlays;
-              # Add flake-parts-specific config here if necessary
-            };
-          })
-        ] ++ config.devenv.modules;
-      }).type;
+      evalArgs = inputs.devenv.lib.mkEvalArgs {
+        inherit pkgs inputs;
+        # Add flake-parts-specific config here if necessary
+        inherit (config.devenv) modules;
+      };
+
+      devenvType = lib.types.submoduleWith evalArgs;
 
       shellPrefix = shellName: if shellName == "default" then "" else "${shellName}-";
     in
